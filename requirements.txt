@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+websockets
+mistralai
+openai
+requests
+python-multipart
+jinja2
+mcp
+python-dotenv
+slowapi
+tavily-python
+

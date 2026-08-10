@@ -1,0 +1,374 @@
+{% include 'layout.html' %}
+
+<style>
+  body {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .image-container {
+    width: 100%;
+    max-width: 800px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .image-header {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    padding: 25px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: bold;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .image-header-icon {
+    font-size: 28px;
+    margin-right: 10px;
+  }
+
+  .image-content {
+    flex: 1;
+    padding: 30px;
+    overflow-y: auto;
+    background: #f8f9fa;
+  }
+
+  .image-display-area {
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    text-align: center;
+    min-height: 350px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 25px;
+    border: 2px dashed #e9ecef;
+  }
+
+  .image-display-area img {
+    max-width: 100%;
+    max-height: 400px;
+    border-radius: 10px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+  }
+
+  .loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #f093fb;
+    border-top: 4px solid #f5576c;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .loading-text {
+    color: #666;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .error-container {
+    background: #f8d7da;
+    border: 2px solid #f5c6cb;
+    color: #721c24;
+    padding: 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .error-icon {
+    font-size: 20px;
+  }
+
+  .placeholder-text {
+    color: #999;
+    font-size: 16px;
+  }
+
+  .image-input-area {
+    padding: 25px;
+    background: white;
+    border-top: 1px solid #e9ecef;
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+  }
+
+  #user_input {
+    flex: 1;
+    border: 2px solid #e9ecef;
+    border-radius: 25px;
+    padding: 12px 16px;
+    font-size: 14px;
+    resize: none;
+    max-height: 100px;
+    font-family: inherit;
+    transition: border-color 0.3s;
+  }
+
+  #user_input:focus {
+    outline: none;
+    border-color: #f093fb;
+  }
+
+  #generateBtn {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  #generateBtn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(245, 87, 108, 0.4);
+  }
+
+  #generateBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .success-icon {
+    font-size: 24px;
+  }
+
+  .image-content::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .image-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+  }
+
+  .image-content::-webkit-scrollbar-thumb {
+    background: #f093fb;
+    border-radius: 10px;
+  }
+
+  .image-content::-webkit-scrollbar-thumb:hover {
+    background: #f5576c;
+  }
+
+  .history-container {
+    margin-top: 20px;
+  }
+
+  .history-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #666;
+    margin-bottom: 10px;
+  }
+
+  .history-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+  }
+
+  .history-item {
+    position: relative;
+    overflow: hidden;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+
+  .history-item:hover {
+    transform: scale(1.05);
+  }
+
+  .history-item img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+</style>
+
+<div class="image-container">
+  <div class="image-header">
+    <span class="image-header-icon">🎨</span>Image Generator
+  </div>
+
+  <div class="image-content">
+    <div class="image-display-area" id="imageDisplay">
+      <span class="placeholder-text">Your generated image will appear here</span>
+    </div>
+
+    {% if error %}
+      <div class="error-container">
+        <span class="error-icon">❌</span>
+        <span>{{ error }}</span>
+      </div>
+    {% elif image_url %}
+      <div class="image-display-area">
+        <img src="{{ image_url }}" alt="Generated Image">
+      </div>
+    {% endif %}
+
+    <div class="history-container" id="historyContainer" style="display:none;">
+      <div class="history-title">📸 Recent Generations</div>
+      <div class="history-grid" id="historyGrid"></div>
+    </div>
+  </div>
+
+  <div class="image-input-area">
+    <form id="imageForm" style="display: flex; width: 100%; gap: 12px; align-items: flex-end;">
+      <textarea
+        id="user_input"
+        name="user_input"
+        rows="1"
+        placeholder="Describe the image you want to generate (e.g., 'a sunset over mountains')..."
+      ></textarea>
+      <button id="generateBtn" type="submit">Generate</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  const imageDisplay = document.getElementById('imageDisplay');
+  const generateBtn = document.getElementById('generateBtn');
+  const userInput = document.getElementById('user_input');
+  const imageForm = document.getElementById('imageForm');
+  const historyContainer = document.getElementById('historyContainer');
+  const historyGrid = document.getElementById('historyGrid');
+  let generationHistory = [];
+
+  // Auto-resize textarea
+  userInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+  });
+
+  // Handle Enter key to generate (Shift+Enter for new line)
+  userInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      imageForm.dispatchEvent(new Event('submit'));
+    }
+  });
+
+  imageForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const prompt = userInput.value;
+    if (!prompt.trim()) return;
+
+    // Show loading state
+    generateBtn.disabled = true;
+    imageDisplay.innerHTML = `
+      <div class="loading-container">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Generating your image...</div>
+      </div>
+    `;
+
+    userInput.value = '';
+    userInput.style.height = 'auto';
+
+    try {
+      const formData = new FormData();
+      formData.append('user_input', prompt);
+
+      const response = await fetch('/image', {
+        method: 'POST',
+        body: formData
+      });
+
+      const html = await response.text();
+
+      // Check if the response contains an image or error
+      if (html.includes('Error') || html.includes('error')) {
+        // Extract error message from HTML
+        const errorMatch = html.match(/<div class="error-container">[\s\S]*?<span>([^<]+)<\/span>/);
+        const errorMsg = errorMatch ? errorMatch[1] : 'Failed to generate image';
+        imageDisplay.innerHTML = `
+          <div class="error-container">
+            <span class="error-icon">❌</span>
+            <span>${errorMsg}</span>
+          </div>
+        `;
+      } else {
+        // Extract image URL from response
+        const imgMatch = html.match(/src="([^"]+)"/);
+        if (imgMatch) {
+          const imageUrl = imgMatch[1];
+          const img = document.createElement('img');
+          img.src = imageUrl;
+          img.alt = 'Generated Image';
+
+          imageDisplay.innerHTML = '';
+          imageDisplay.appendChild(img);
+
+          // Add to history
+          generationHistory.unshift({ prompt, url: imageUrl });
+          if (generationHistory.length > 6) generationHistory.pop();
+          updateHistory();
+        }
+      }
+
+      generateBtn.disabled = false;
+    } catch (error) {
+      imageDisplay.innerHTML = `
+        <div class="error-container">
+          <span class="error-icon">❌</span>
+          <span>Error: ${error.message}</span>
+        </div>
+      `;
+      generateBtn.disabled = false;
+    }
+  });
+
+  function updateHistory() {
+    if (generationHistory.length > 0) {
+      historyContainer.style.display = 'block';
+      historyGrid.innerHTML = generationHistory.map((item, idx) => `
+        <div class="history-item" onclick="viewImage(${idx})" title="${item.prompt}">
+          <img src="${item.url}" alt="${item.prompt}">
+        </div>
+      `).join('');
+    }
+  }
+
+  function viewImage(idx) {
+    const item = generationHistory[idx];
+    const img = document.createElement('img');
+    img.src = item.url;
+    img.alt = item.prompt;
+
+    imageDisplay.innerHTML = '';
+    imageDisplay.appendChild(img);
+  }
+</script>
