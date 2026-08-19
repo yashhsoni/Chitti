@@ -39,6 +39,7 @@ mcp_config.json
 *.cer
 *.pem
 *.key
+chat_history.db
 
 # Test / coverage
 .pytest_cache/
