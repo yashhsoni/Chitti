@@ -9,13 +9,15 @@ from collections import defaultdict
 
 os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
 
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from fastapi.templating import Jinja2Templates
-from connectors.tools import TOOLS, call_tool
+from connectors.tools import get_all_tools, async_call_tool
+from connectors.mcp_client import mcp_manager
 from db import init_db, save_message, load_history, get_all_sessions, save_memory, load_memories, delete_memory, delete_session
 
 load_dotenv()
@@ -61,7 +63,15 @@ chat_client = OpenAI(
     api_key=os.getenv("CHAT_API_KEY")
 )
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Initializing MCP Client Manager...")
+    await mcp_manager.initialize()
+    yield
+    logger.info("Closing MCP Client Manager...")
+    await mcp_manager.close()
+
+app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="template")
 init_db()
@@ -174,21 +184,23 @@ async def websocket_chat(websocket: WebSocket):
             await websocket.send_json({"type": "typing_start"})
 
             try:
+                active_tools = await get_all_tools()
                 kwargs = {
                     "model": "anthropic.claude-sonnet-4-6",
                     "messages": chat_log,
                     "temperature": 0.3,
                 }
-                if TOOLS:
-                    kwargs["tools"] = TOOLS
+                if active_tools:
+                    kwargs["tools"] = active_tools
 
-                first_resp = chat_client.chat.completions.create(**kwargs, stream=False)
-                choice = first_resp.choices[0]
+                current_choice = chat_client.chat.completions.create(**kwargs, stream=False).choices[0]
+                bot_response = ""
 
-                if choice.message.tool_calls:
-                    chat_log.append(choice.message)
+                # Agentic loop: keep handling tool calls until model returns text
+                while current_choice.message.tool_calls:
+                    chat_log.append(current_choice.message.model_dump(exclude_unset=True, exclude_none=True))
 
-                    for tool_call in choice.message.tool_calls:
+                    for tool_call in current_choice.message.tool_calls:
                         func_name = tool_call.function.name
                         try:
                             func_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
@@ -196,29 +208,20 @@ async def websocket_chat(websocket: WebSocket):
                             func_args = {}
 
                         await websocket.send_json({"type": "tool_call", "data": f"Running: {func_name}..."})
-                        tool_result = await asyncio.get_event_loop().run_in_executor(
-                            None, lambda fn=func_name, fa=func_args: call_tool(fn, fa)
-                        )
+                        tool_result = await async_call_tool(func_name, func_args)
                         chat_log.append({"role": "tool", "tool_call_id": tool_call.id, "content": str(tool_result)})
 
-                    stream = chat_client.chat.completions.create(
+                    current_choice = chat_client.chat.completions.create(
                         model="anthropic.claude-sonnet-4-6",
                         messages=chat_log,
+                        tools=active_tools,
                         temperature=0.6,
-                        stream=True
-                    )
-                    bot_response = ""
-                    for chunk in stream:
-                        if chunk.choices[0].delta.content:
-                            content = chunk.choices[0].delta.content
-                            bot_response += content
-                            await websocket.send_json({"type": "chunk", "data": content})
-                            await asyncio.sleep(0.01)
+                        stream=False
+                    ).choices[0]
 
-                else:
-                    bot_response = choice.message.content or ""
-                    if bot_response:
-                        await websocket.send_json({"type": "chunk", "data": bot_response})
+                bot_response = current_choice.message.content or ""
+                if bot_response:
+                    await websocket.send_json({"type": "chunk", "data": bot_response})
 
                 chat_log.append({"role": "assistant", "content": bot_response})
                 save_message(session_id, "assistant", bot_response)

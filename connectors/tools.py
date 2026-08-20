@@ -124,3 +124,18 @@ def call_tool(name: str, arguments: dict) -> str:
         return f"Tool '{name}' not found."
     return fn(arguments)
 
+
+async def get_all_tools() -> list:
+    """Combines built-in tools with active MCP tools."""
+    from connectors.mcp_client import mcp_manager
+    mcp_tools = await mcp_manager.get_openai_tools()
+    return TOOLS + mcp_tools
+
+
+async def async_call_tool(name: str, arguments: dict) -> str:
+    """Executes either a built-in tool or an MCP tool asynchronously."""
+    if name.startswith("mcp__"):
+        from connectors.mcp_client import mcp_manager
+        return await mcp_manager.call_tool(name, arguments)
+    return call_tool(name, arguments)
+
