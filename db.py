@@ -3,7 +3,7 @@ import os
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "chat_history.db")
 
-SYSTEM_PROMPT = "You are Chitthi, a helpful assistant. You can use available connectors/tools to answer user requests."
+SYSTEM_PROMPT = "You are Chitti the robo from enthiran, a helpful assistant. You can use available connectors/tools to answer user requests."
 
 
 def init_db():
@@ -25,14 +25,12 @@ def init_db():
             )
         """)
 
-
 def save_message(session_id: str, role: str, content: str):
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             "INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)",
             (session_id, role, content)
         )
-
 
 def load_history(session_id: str) -> list:
     memories = load_memories()
@@ -46,14 +44,12 @@ def load_history(session_id: str) -> list:
     history += [{"role": row[0], "content": row[1]} for row in rows]
     return history
 
-
 def save_memory(memory: str):
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             "INSERT OR IGNORE INTO memories (memory) VALUES (?)",
             (memory.strip(),)
         )
-
 
 def load_memories() -> list:
     with sqlite3.connect(DB_PATH) as conn:

@@ -6,6 +6,9 @@
       <span class="brand-badge">AI</span>
     </a>
     <div class="nav-right">
+      <button id="musicToggleBtn" title="Toggle background music">
+        <i class="fa-solid fa-volume-xmark" id="musicIcon"></i>
+      </button>
       <button id="themeToggleBtn" title="Toggle theme">
         <i class="fa-solid fa-moon" id="themeIcon"></i>
       </button>
@@ -127,9 +130,120 @@
   #themeToggleBtn:hover { background: rgba(56,189,248,0.15); color: #38bdf8; }
   body.light #themeToggleBtn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.1); color: #0ea5e9; }
 
+  #musicToggleBtn {
+    width: 36px; height: 36px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    color: #94a3b8;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  #musicToggleBtn:hover { background: rgba(56,189,248,0.15); color: #38bdf8; }
+  #musicToggleBtn.playing { background: rgba(56,189,248,0.15); color: #38bdf8; animation: pulseGlow 2s infinite ease-in-out; }
+  body.light #musicToggleBtn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.1); color: #0ea5e9; }
+  body.light #musicToggleBtn.playing { background: rgba(14,165,233,0.1); color: #0ea5e9; }
+
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 4px rgba(56, 189, 248, 0.2); }
+    50% { box-shadow: 0 0 12px rgba(56, 189, 248, 0.5); }
+  }
+
   /* light theme overrides */
   body.light { background: #f0f9ff; color: #0f172a; }
   body.light #mainNav { background: rgba(240,249,255,0.85); border-bottom: 1px solid rgba(14,165,233,0.2); }
   body.light .brand-name { color: #0f172a; }
   body.light .status-pill { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.1); color: #475569; }
 </style>
+
+<script>
+  (function initMusicPlayer() {
+    const musicSrc = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+    let audio = null;
+    let isPlaying = false;
+
+    const btn = document.getElementById('musicToggleBtn');
+    const icon = document.getElementById('musicIcon');
+
+    function getAudio() {
+      if (!audio) {
+        audio = new Audio(musicSrc);
+        audio.loop = true;
+        // Comfortable low volume for background ambient music
+        audio.volume = 0.25;
+      }
+      return audio;
+    }
+
+    function togglePlay() {
+      const a = getAudio();
+      if (isPlaying) {
+        a.pause();
+        isPlaying = false;
+        localStorage.setItem('music_state', 'muted');
+        updateUI(false);
+      } else {
+        a.play().then(() => {
+          isPlaying = true;
+          localStorage.setItem('music_state', 'playing');
+          updateUI(true);
+        }).catch(err => {
+          console.warn("Autoplay blocked by browser, waiting for user interaction.", err);
+        });
+      }
+    }
+
+    function updateUI(playing) {
+      if (playing) {
+        btn.classList.add('playing');
+        icon.className = 'fa-solid fa-volume-high';
+        btn.title = "Mute background music";
+      } else {
+        btn.classList.remove('playing');
+        icon.className = 'fa-solid fa-volume-xmark';
+        btn.title = "Unmute background music";
+      }
+    }
+
+    if (btn) {
+      btn.addEventListener('click', togglePlay);
+    }
+
+    // Restore state from localStorage
+    const savedState = localStorage.getItem('music_state');
+    if (savedState === 'playing') {
+      const attemptPlay = () => {
+        const a = getAudio();
+        a.play().then(() => {
+          isPlaying = true;
+          updateUI(true);
+        }).catch(() => {
+          // If blocked, wait for first user interaction (click/keydown) on the document to play
+          const resumeOnInteraction = () => {
+            a.play().then(() => {
+              isPlaying = true;
+              updateUI(true);
+            });
+            document.removeEventListener('click', resumeOnInteraction);
+            document.removeEventListener('keydown', resumeOnInteraction);
+          };
+          document.addEventListener('click', resumeOnInteraction);
+          document.addEventListener('keydown', resumeOnInteraction);
+        });
+      };
+
+      if (document.readyState === 'complete') {
+        attemptPlay();
+      } else {
+        window.addEventListener('load', attemptPlay);
+      }
+    } else {
+      updateUI(false);
+    }
+  })();
+</script>
